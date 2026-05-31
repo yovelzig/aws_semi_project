@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+.env
+uploads/
+data/
+.vscode/
+database/rag_cache/
+*.log
+logs/
