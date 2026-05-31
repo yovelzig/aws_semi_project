@@ -1,3 +1,6 @@
+.git
+.gitignore
+
 __pycache__/
 *.pyc
 *.pyo
@@ -13,8 +16,12 @@ uploads/
 database/
 *.db
 
-.vscode/
-.idea/
+node_modules/
+.next/
+dist/
+build/
 
 *.log
-logs/
+.DS_Store
+.idea/
+.vscode/

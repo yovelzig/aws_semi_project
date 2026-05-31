@@ -1,0 +1,13 @@
+services:
+  rag-app:
+    build: .
+    image: yovelz/aws_webapp-rag-app:${APP_VERSION}
+    container_name: rag_app
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    volumes:
+      - ./uploads:/app/uploads
+      - ./database:/app/database
+    restart: unless-stopped

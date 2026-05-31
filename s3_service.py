@@ -1,9 +1,14 @@
 import boto3
 
+from config import Config, require_env
 
-s3 = boto3.client("s3")
 
-BUCKET_NAME = "oz-private-user9"  # Replace with your bucket name
+s3 = boto3.client(
+    "s3",
+    region_name=Config.AWS_REGION
+)
+
+BUCKET_NAME = require_env("S3_BUCKET_NAME")
 
 
 def upload_file_to_s3(file_path, s3_key):

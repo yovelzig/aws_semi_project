@@ -1,12 +1,15 @@
 import boto3
 
+from config import Config, require_env
+
+
 bedrock_agent = boto3.client(
     "bedrock-agent",
-    region_name="us-east-2"
+    region_name=Config.AWS_REGION
 )
 
-KNOWLEDGE_BASE_ID = "ORD1CPDCWR"
-DATA_SOURCE_ID = "GSHI7R3JO7"
+KNOWLEDGE_BASE_ID = require_env("BEDROCK_KNOWLEDGE_BASE_ID")
+DATA_SOURCE_ID = require_env("BEDROCK_DATA_SOURCE_ID")
 
 
 def trigger_kb_sync():

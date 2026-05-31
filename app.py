@@ -47,7 +47,7 @@
 import logging
 import os
 import uuid
-
+from config import require_env
 from flask import Flask, render_template, request, jsonify, session
 
 from database import init_db, save_message, get_history
@@ -61,7 +61,9 @@ from bedrock_sync import trigger_kb_sync
 logging.basicConfig(level=logging.INFO)
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "clasico-secret-key-2024")
+app.secret_key = require_env("SECRET_KEY")
+# Initialize SQLite tables when the app is loaded by Gunicorn/Docker
+init_db()
 
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -79,6 +81,44 @@ def index():
         session["session_id"] = str(uuid.uuid4())
     return render_template("index.html")
 
+
+def is_last_question_request(question: str) -> bool:
+    q = question.lower().strip()
+
+    patterns = [
+        "what was my last question",
+        "what was the last question",
+        "what did i ask last",
+        "what did i just ask",
+        "מה הייתה השאלה האחרונה שלי",
+        "מה השאלה האחרונה שלי",
+        "מה שאלתי קודם",
+        "מה שאלתי לפני",
+    ]
+
+    return any(pattern in q for pattern in patterns)
+def get_previous_user_question(history: list) -> str | None:
+    """
+    Returns the previous real user question from chat history.
+
+    Important:
+    The current user question is not saved yet when this function runs,
+    so the latest user message in history is the previous question.
+    """
+    for message in reversed(history):
+        if message.get("role") == "user":
+            content = (message.get("content") or "").strip()
+
+            if not content:
+                continue
+
+            # Do not count meta-history questions as the "last real question".
+            if is_last_question_request(content):
+                continue
+
+            return content
+
+    return None
 
 # -----------------------
 # CHAT (NOW AWS RAG)
@@ -101,6 +141,22 @@ def chat():
 
     try:
         history = get_history(session_id, limit=10)
+
+        if is_last_question_request(question):
+            last_question = get_previous_user_question(history)
+
+            if last_question:
+                answer = f'Your last question was: "{last_question}"'
+            else:
+                answer = "I don't see a previous question in this chat."
+
+            save_message(session_id, "user", question)
+            save_message(session_id, "assistant", answer)
+
+            return jsonify({
+                "answer": answer,
+                "session_id": session_id
+            })
 
         llm_history = [
             {
@@ -209,6 +265,6 @@ def debug_retrieve():
 # START
 # -----------------------
 if __name__ == "__main__":
-    init_db()
-    print("El Clásico AI (AWS RAG) ready at http://localhost:5000")
+    print("IT AI assistant (AWS RAG) ready at http://localhost:5000")
     app.run(debug=False, host="0.0.0.0", port=5000)
+    

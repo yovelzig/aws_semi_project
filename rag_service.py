@@ -26,15 +26,14 @@
 #     return response["output"]["text"]
 import boto3
 
+from config import Config, require_env
 
-AWS_REGION = "us-east-2"
 
-KNOWLEDGE_BASE_ID = "ORD1CPDCWR"
+AWS_REGION = Config.AWS_REGION
 
-MODEL_ARN = (
-    "arn:aws:bedrock:us-east-2:881490130721:"
-    "inference-profile/global.anthropic.claude-haiku-4-5-20251001-v1:0"
-)
+KNOWLEDGE_BASE_ID = require_env("BEDROCK_KNOWLEDGE_BASE_ID")
+
+MODEL_ARN = require_env("BEDROCK_MODEL_ARN")
 
 def retrieve_debug(question):
     response = bedrock_runtime.retrieve(
@@ -101,18 +100,39 @@ def build_conversation_context(history=None):
 
 def build_retrieval_query(question, history=None):
     """
-    Builds a better query for the Knowledge Base.
+    Build a retrieval query for the Knowledge Base.
 
-    Why?
-    If the user asks:
-    1. "My Docker container keeps restarting"
-    2. "What should I check first?"
-
-    The second question alone is unclear.
-    So we combine recent user messages with the current question.
+    Rules:
+    - If the current question is standalone, retrieve only by the current question.
+    - If the current question is a follow-up, use recent history only to clarify
+      what the user is referring to.
+    - Do not include multiple old questions because that causes unrelated retrieval.
     """
 
     if not history:
+        return question
+
+    follow_up_phrases = [
+        "what about",
+        "explain more",
+        "tell me more",
+        "what should i check next",
+        "what next",
+        "next",
+        "that",
+        "this",
+        "it",
+        "how about",
+        "and now",
+        "continue",
+        "more details",
+    ]
+
+    normalized_question = question.lower().strip()
+
+    is_follow_up = any(phrase in normalized_question for phrase in follow_up_phrases)
+
+    if not is_follow_up:
         return question
 
     recent_user_messages = [
@@ -121,10 +141,18 @@ def build_retrieval_query(question, history=None):
         if message.get("role") == "user" and message.get("content")
     ]
 
-    combined_query = "\n".join(recent_user_messages + [question]).strip()
+    previous_topic = recent_user_messages[-1] if recent_user_messages else ""
 
-    return combined_query or question
+    if not previous_topic:
+        return question
 
+    return f"""
+Previous topic:
+{previous_topic}
+
+Follow-up question:
+{question}
+""".strip()
 
 def build_grounded_prompt(question, history=None):
     conversation_context = build_conversation_context(history)
@@ -165,19 +193,29 @@ def ask_question(question, history=None):
     conversation_context = build_conversation_context(history)
 
     prompt_template = f"""
-You are a technical support AI assistant.
+You are a knowledge base assistant.
 
-You must answer using ONLY the retrieved search results from the uploaded documents.
+Your job:
+Answer the CURRENT user question using ONLY the retrieved search results
+from the uploaded documents.
 
-Important rules:
-- Do not use outside knowledge.
-- Do not guess.
-- If the retrieved search results do not contain the answer, say:
-  "I do not have enough information in the uploaded documents to answer this."
-- Use the conversation history only to understand follow-up questions, not as a factual source.
-- If the retrieved search results directly answer the question, give the answer clearly and shortly.
+Critical rules:
+1. The retrieved search results are the ONLY factual source.
+2. The conversation history is for understanding references only.
+   Examples: "it", "that", "this issue", "what next", "explain more".
+3. The conversation history is NOT a source of factual information.
+4. If the retrieved search results contain a direct answer to the current question,
+   you MUST answer with that information.
+5. Do NOT reject an answer just because it looks like test data, demo data,
+   sports data, or something outside technical support.
+6. Do NOT answer previous questions unless the current question explicitly asks about them.
+7. Do NOT combine multiple old questions into one answer.
+8. Do NOT use outside knowledge.
+9. Do NOT guess.
+10. If the retrieved search results do not contain enough information, say exactly:
+    "I do not have enough information in the uploaded documents to answer this."
 
-Conversation history:
+Conversation history, for reference only:
 {conversation_context}
 
 Retrieved search results:
@@ -186,8 +224,11 @@ $search_results$
 Current user question:
 {question}
 
+Answer only the current user question.
+
 Answer:
 """
+    
 
     response = bedrock_runtime.retrieve_and_generate(
         input={
