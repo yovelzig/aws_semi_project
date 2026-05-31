@@ -53,7 +53,7 @@ from flask import Flask, render_template, request, jsonify, session
 from database import init_db, save_message, get_history
 
 # AWS RAG
-from rag_service import ask_question
+from rag_service import ask_question, retrieve_debug
 from s3_service import upload_file_to_s3
 from bedrock_sync import trigger_kb_sync
 
@@ -85,24 +85,37 @@ def index():
 # -----------------------
 @app.route("/api/chat", methods=["POST"])
 def chat():
-    data = request.get_json()
+    data = request.get_json() or {}
+
     question = (data.get("message") or "").strip()
+    frontend_session_id = data.get("session_id")
 
     if not question:
         return jsonify({"error": "Empty question"}), 400
 
-    session_id = session.get("session_id", str(uuid.uuid4()))
+    # Prefer session_id from frontend.
+    # If missing, use Flask session.
+    # If still missing, create a new one.
+    session_id = frontend_session_id or session.get("session_id") or str(uuid.uuid4())
     session["session_id"] = session_id
 
     try:
         history = get_history(session_id, limit=10)
+
         llm_history = [
-            {"role": h["role"], "content": h["content"]}
+            {
+                "role": h["role"],
+                "content": h["content"]
+            }
             for h in history
         ]
 
-        # 🔥 AWS RAG CALL (no FAISS anymore)
-        answer = ask_question(question)
+        # This is the important fix:
+        # send both the current question and the previous conversation history.
+        answer = ask_question(
+            question=question,
+            history=llm_history
+        )
 
         save_message(session_id, "user", question)
         save_message(session_id, "assistant", answer)
@@ -115,7 +128,6 @@ def chat():
     except Exception as e:
         logging.exception(e)
         return jsonify({"error": str(e)}), 500
-
 
 # -----------------------
 # HISTORY
@@ -177,6 +189,21 @@ def upload_document():
         logging.exception(e)
         return jsonify({"error": str(e)}), 500
 
+@app.route("/api/debug/retrieve", methods=["POST"])
+def debug_retrieve():
+    data = request.get_json() or {}
+    question = (data.get("message") or "").strip()
+
+    if not question:
+        return jsonify({"error": "Empty question"}), 400
+
+    results = retrieve_debug(question)
+
+    return jsonify({
+        "question": question,
+        "results_count": len(results),
+        "results": results
+    })
 
 # -----------------------
 # START

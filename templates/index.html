@@ -1233,6 +1233,7 @@ const sendBtn = document.getElementById('send-btn');
 const newChatBtn = document.getElementById('new-chat-btn');
 
 let isLoading = false;
+let sessionId = localStorage.getItem('support_session_id');
 
 function scrollBottom() {
   messagesEl.scrollTop = messagesEl.scrollHeight;
@@ -1288,8 +1289,26 @@ function escapeHtml(text) {
     .replace(/\n/g, '<br>');
 }
 
+async function ensureSession() {
+  if (sessionId) {
+    return sessionId;
+  }
+
+  const res = await fetch('/api/new_session', {
+    method: 'POST'
+  });
+
+  const data = await res.json();
+
+  sessionId = data.session_id;
+  localStorage.setItem('support_session_id', sessionId);
+
+  return sessionId;
+}
+
 async function sendMessage(question) {
   if (!question || isLoading) return;
+
   isLoading = true;
   sendBtn.disabled = true;
 
@@ -1297,14 +1316,24 @@ async function sendMessage(question) {
   showTyping();
 
   try {
+    const currentSessionId = await ensureSession();
+
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: question }),
+      body: JSON.stringify({
+        session_id: currentSessionId,
+        message: question
+      }),
     });
 
     const data = await res.json();
     hideTyping();
+
+    if (data.session_id) {
+      sessionId = data.session_id;
+      localStorage.setItem('support_session_id', sessionId);
+    }
 
     if (data.error) {
       addMessage('bot', '⚠️ ' + data.error);
@@ -1342,7 +1371,15 @@ function askSuggested(btn) {
 }
 
 newChatBtn.addEventListener('click', async () => {
-  await fetch('/api/new_session', { method: 'POST' });
+  const res = await fetch('/api/new_session', {
+    method: 'POST'
+  });
+
+  const data = await res.json();
+
+  sessionId = data.session_id;
+  localStorage.setItem('support_session_id', sessionId);
+
   messagesEl.innerHTML = `
     <div class="chat-welcome">
       <div class="welcome-orb">🛟</div>
