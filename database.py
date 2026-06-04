@@ -1,6 +1,6 @@
 """
-SQLite database module for persistent chat history.
-Stores sessions, messages, and timestamps.
+SQLite database module for persistent chat history and escalation events.
+Stores sessions, messages, tool actions, and timestamps.
 """
 import sqlite3
 import os
@@ -18,13 +18,16 @@ def get_conn():
 def init_db():
     """Create tables if they don't exist."""
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+
     conn = get_conn()
+
     conn.execute("""
         CREATE TABLE IF NOT EXISTS sessions (
             id TEXT PRIMARY KEY,
             created_at TEXT NOT NULL
         )
     """)
+
     conn.execute("""
         CREATE TABLE IF NOT EXISTS messages (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -35,24 +38,50 @@ def init_db():
             FOREIGN KEY (session_id) REFERENCES sessions(id)
         )
     """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS escalation_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL,
+            user_question TEXT NOT NULL,
+            assistant_answer TEXT NOT NULL,
+            tool_name TEXT NOT NULL,
+            status TEXT NOT NULL,
+            details TEXT,
+            timestamp TEXT NOT NULL
+        )
+    """)
+
     conn.commit()
     conn.close()
 
 
 def ensure_session(session_id: str):
     conn = get_conn()
-    exists = conn.execute("SELECT 1 FROM sessions WHERE id=?", (session_id,)).fetchone()
+    exists = conn.execute(
+        "SELECT 1 FROM sessions WHERE id=?",
+        (session_id,)
+    ).fetchone()
+
     if not exists:
-        conn.execute("INSERT INTO sessions VALUES (?,?)", (session_id, datetime.utcnow().isoformat()))
+        conn.execute(
+            "INSERT INTO sessions VALUES (?,?)",
+            (session_id, datetime.utcnow().isoformat())
+        )
         conn.commit()
+
     conn.close()
 
 
 def save_message(session_id: str, role: str, content: str):
     ensure_session(session_id)
+
     conn = get_conn()
     conn.execute(
-        "INSERT INTO messages (session_id, role, content, timestamp) VALUES (?,?,?,?)",
+        """
+        INSERT INTO messages (session_id, role, content, timestamp)
+        VALUES (?,?,?,?)
+        """,
         (session_id, role, content, datetime.utcnow().isoformat()),
     )
     conn.commit()
@@ -63,15 +92,72 @@ def get_history(session_id: str, limit: int = 20) -> list:
     """Return last N messages as list of dicts."""
     conn = get_conn()
     rows = conn.execute(
-        "SELECT role, content, timestamp FROM messages WHERE session_id=? ORDER BY id DESC LIMIT ?",
+        """
+        SELECT role, content, timestamp
+        FROM messages
+        WHERE session_id=?
+        ORDER BY id DESC
+        LIMIT ?
+        """,
         (session_id, limit),
     ).fetchall()
     conn.close()
+
     return [dict(r) for r in reversed(rows)]
 
 
 def get_all_sessions() -> list:
     conn = get_conn()
-    rows = conn.execute("SELECT id, created_at FROM sessions ORDER BY created_at DESC").fetchall()
+    rows = conn.execute(
+        "SELECT id, created_at FROM sessions ORDER BY created_at DESC"
+    ).fetchall()
     conn.close()
+
+    return [dict(r) for r in rows]
+
+
+def save_escalation_event(
+    session_id: str,
+    user_question: str,
+    assistant_answer: str,
+    tool_name: str,
+    status: str,
+    details: str = ""
+):
+    ensure_session(session_id)
+
+    conn = get_conn()
+    conn.execute(
+        """
+        INSERT INTO escalation_events
+        (session_id, user_question, assistant_answer, tool_name, status, details, timestamp)
+        VALUES (?,?,?,?,?,?,?)
+        """,
+        (
+            session_id,
+            user_question,
+            assistant_answer,
+            tool_name,
+            status,
+            details,
+            datetime.utcnow().isoformat()
+        )
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_escalation_events(limit: int = 50) -> list:
+    conn = get_conn()
+    rows = conn.execute(
+        """
+        SELECT *
+        FROM escalation_events
+        ORDER BY id DESC
+        LIMIT ?
+        """,
+        (limit,)
+    ).fetchall()
+    conn.close()
+
     return [dict(r) for r in rows]
