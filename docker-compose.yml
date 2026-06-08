@@ -10,4 +10,5 @@ services:
     volumes:
       - ./uploads:/app/uploads
       - ./database:/app/database
+    command: gunicorn -b 0.0.0.0:5000 --worker-class gthread --workers 2 --threads 4 --timeout 180 app:app
     restart: unless-stopped

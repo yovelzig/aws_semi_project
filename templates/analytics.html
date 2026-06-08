@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SupportOps AI — Analytics Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+:root {
+  --bg: #060912;
+  --panel: rgba(13, 21, 36, 0.82);
+  --panel2: rgba(18, 30, 50, 0.86);
+  --border: rgba(148, 163, 184, 0.16);
+  --text: #eef6ff;
+  --muted: #8ea1b8;
+  --primary: #5eead4;
+  --primary2: #38bdf8;
+  --danger: #ef4444;
+  --warning: #f59e0b;
+  --success: #22c55e;
+  --radius: 22px;
+  --font: 'Inter', sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  min-height: 100vh;
+  font-family: var(--font);
+  color: var(--text);
+  background:
+    radial-gradient(circle at 16% 10%, rgba(56, 189, 248, 0.16), transparent 32%),
+    radial-gradient(circle at 82% 16%, rgba(129, 140, 248, 0.18), transparent 28%),
+    linear-gradient(145deg, var(--bg), #07101f 48%, #050714);
+  padding: 2rem;
+}
+
+.header {
+  max-width: 1280px;
+  margin: 0 auto 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.brand {
+  display: flex;
+  flex-direction: column;
+  gap: .3rem;
+}
+
+.eyebrow {
+  color: var(--primary);
+  font-family: var(--mono);
+  font-size: .78rem;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+h1 {
+  font-size: clamp(2rem, 4vw, 3.5rem);
+  letter-spacing: -0.06em;
+}
+
+.actions {
+  display: flex;
+  gap: .75rem;
+  align-items: center;
+}
+
+select, a.button {
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+  border-radius: 999px;
+  padding: .75rem 1rem;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+select option {
+  background: #0b1220;
+}
+
+.grid {
+  max-width: 1280px;
+  margin: 0 auto;
+  display: grid;
+  gap: 1rem;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 1rem;
+}
+
+.card {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  border-radius: var(--radius);
+  padding: 1.2rem;
+  box-shadow: 0 24px 90px rgba(0, 0, 0, 0.28);
+}
+
+.card-label {
+  color: var(--muted);
+  font-size: .75rem;
+  text-transform: uppercase;
+  letter-spacing: .09em;
+  font-weight: 800;
+  margin-bottom: .7rem;
+}
+
+.card-value {
+  font-size: 2rem;
+  font-weight: 900;
+  letter-spacing: -0.05em;
+}
+
+.card-sub {
+  color: var(--muted);
+  font-size: .78rem;
+  margin-top: .35rem;
+}
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: 0.9fr 1.1fr;
+  gap: 1rem;
+}
+
+.panel {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  min-height: 360px;
+}
+
+.panel-title {
+  font-size: 1rem;
+  font-weight: 900;
+  margin-bottom: 1rem;
+}
+
+.table-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .86rem;
+}
+
+th {
+  text-align: left;
+  color: var(--muted);
+  font-size: .72rem;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  padding: .75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+td {
+  padding: .75rem;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+  color: #dbeafe;
+  vertical-align: top;
+}
+
+.badge {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: .25rem .55rem;
+  font-size: .72rem;
+  font-family: var(--mono);
+  border: 1px solid var(--border);
+}
+
+.badge.self {
+  color: #86efac;
+  background: rgba(34,197,94,.09);
+}
+
+.badge.escalated {
+  color: #fca5a5;
+  background: rgba(239,68,68,.09);
+}
+
+.badge.diagnostics {
+  color: #fde68a;
+  background: rgba(245,158,11,.09);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.error-box {
+  max-width: 1280px;
+  margin: 1rem auto;
+  display: none;
+  border: 1px solid rgba(239,68,68,.35);
+  background: rgba(239,68,68,.08);
+  color: #fecaca;
+  border-radius: 16px;
+  padding: 1rem;
+}
+
+@media (max-width: 1100px) {
+  .cards {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .chart-grid,
+  .table-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  body {
+    padding: 1rem;
+  }
+
+  .header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .cards {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="brand">
+    <div class="eyebrow">SupportOps AI</div>
+    <h1>Support Analytics Dashboard</h1>
+    <p class="muted">Measure self-service resolution, IT escalations, saved time, recurring issues, and knowledge gaps.</p>
+  </div>
+
+  <div class="actions">
+    <select id="days-select">
+      <option value="1">Last 1 day</option>
+      <option value="7" selected>Last 7 days</option>
+      <option value="30">Last 30 days</option>
+      <option value="90">Last 90 days</option>
+    </select>
+    <a class="button" href="/">Back to Chat</a>
+  </div>
+</div>
+
+<div class="error-box" id="error-box"></div>
+
+<div class="grid">
+  <section class="cards">
+    <div class="card">
+      <div class="card-label">Total Requests</div>
+      <div class="card-value" id="totalRequests">0</div>
+      <div class="card-sub">Employee questions</div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Solved Without IT</div>
+      <div class="card-value" id="solvedWithoutIT">0</div>
+      <div class="card-sub">Self-service wins</div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Escalated To IT</div>
+      <div class="card-value" id="escalatedToIT">0</div>
+      <div class="card-sub">Human intervention</div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Diagnostics Required</div>
+      <div class="card-value" id="diagnosticsRequired">0</div>
+      <div class="card-sub">Need logs/details</div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Self-Service Rate</div>
+      <div class="card-value" id="selfServiceRate">0%</div>
+      <div class="card-sub">Resolved by AI guidance</div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">IT Hours Saved</div>
+      <div class="card-value" id="estimatedHoursSaved">0</div>
+      <div class="card-sub">Estimated impact</div>
+    </div>
+  </section>
+
+  <section class="chart-grid">
+    <div class="panel">
+      <div class="panel-title">Resolution Mix</div>
+      <canvas id="resolutionChart"></canvas>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Requests by Category</div>
+      <canvas id="categoryChart"></canvas>
+    </div>
+  </section>
+
+  <!-- <section class="table-grid">
+    <div class="panel">
+      <div class="panel-title">Latest Interactions</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Category</th>
+            <th>Resolution</th>
+            <th>Question</th>
+          </tr>
+        </thead>
+        <tbody id="interactions-body"></tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Knowledge Gaps</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Category</th>
+            <th>Reason</th>
+          </tr>
+        </thead>
+        <tbody id="gaps-body"></tbody>
+      </table>
+    </div>
+  </section> -->
+  <section class="table-grid">
+    <div class="panel">
+      <div class="panel-title">Knowledge Gaps</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Category</th>
+            <th>Reason</th>
+          </tr>
+        </thead>
+        <tbody id="gaps-body"></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<script>
+let resolutionChart = null;
+let categoryChart = null;
+
+function badgeClass(type) {
+  if (type === 'SELF_SERVICE') return 'badge self';
+  if (type === 'ESCALATED_TO_IT') return 'badge escalated';
+  if (type === 'DIAGNOSTICS_REQUIRED') return 'badge diagnostics';
+  return 'badge';
+}
+
+function shortText(text, max = 90) {
+  if (!text) return '';
+  return text.length > max ? text.slice(0, max) + '…' : text;
+}
+
+function showError(message) {
+  const box = document.getElementById('error-box');
+  box.style.display = 'block';
+  box.textContent = message;
+}
+
+function hideError() {
+  const box = document.getElementById('error-box');
+  box.style.display = 'none';
+  box.textContent = '';
+}
+
+async function loadDashboard() {
+  hideError();
+
+  const days = document.getElementById('days-select').value;
+
+  try {
+    const res = await fetch(`/api/analytics/dashboard?days=${days}`);
+
+    if (!res.ok) {
+      throw new Error(`Dashboard API failed with status ${res.status}`);
+    }
+
+    const data = await res.json();
+
+    const summary = data.summary || {};
+    const categories = data.categories || [];
+    const interactions = data.latestInteractions || [];
+    const gaps = data.knowledgeGaps || [];
+
+    document.getElementById('totalRequests').textContent = summary.totalRequests || 0;
+    document.getElementById('solvedWithoutIT').textContent = summary.solvedWithoutIT || 0;
+    document.getElementById('escalatedToIT').textContent = summary.escalatedToIT || 0;
+    document.getElementById('diagnosticsRequired').textContent = summary.diagnosticsRequired || 0;
+    document.getElementById('selfServiceRate').textContent = `${summary.selfServiceRate || 0}%`;
+    document.getElementById('estimatedHoursSaved').textContent = summary.estimatedHoursSaved || 0;
+
+    renderResolutionChart(summary);
+    renderCategoryChart(categories);
+    // renderInteractions(interactions);
+    renderGaps(gaps);
+
+  } catch (err) {
+    console.error(err);
+    showError(`Failed to load analytics dashboard: ${err.message}`);
+  }
+}
+
+function renderResolutionChart(summary) {
+  const ctx = document.getElementById('resolutionChart');
+
+  const chartData = [
+    summary.solvedWithoutIT || 0,
+    summary.escalatedToIT || 0,
+    summary.diagnosticsRequired || 0
+  ];
+
+  if (resolutionChart) {
+    resolutionChart.destroy();
+  }
+
+  resolutionChart = new Chart(ctx, {
+    type: 'pie',
+    data: {
+      labels: ['Solved Without IT', 'Escalated To IT', 'Diagnostics Required'],
+      datasets: [{
+        data: chartData
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {
+          labels: {
+            color: '#eef6ff'
+          }
+        }
+      }
+    }
+  });
+}
+
+function renderCategoryChart(categories) {
+  const ctx = document.getElementById('categoryChart');
+
+  if (categoryChart) {
+    categoryChart.destroy();
+  }
+
+  categoryChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: categories.map(item => item.category),
+      datasets: [{
+        label: 'Requests',
+        data: categories.map(item => item.count)
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        x: {
+          ticks: { color: '#8ea1b8' },
+          grid: { color: 'rgba(148,163,184,.08)' }
+        },
+        y: {
+          ticks: { color: '#8ea1b8' },
+          grid: { color: 'rgba(148,163,184,.08)' }
+        }
+      },
+      plugins: {
+        legend: {
+          labels: {
+            color: '#eef6ff'
+          }
+        }
+      }
+    }
+  });
+}
+
+// function renderInteractions(interactions) {
+//   const tbody = document.getElementById('interactions-body');
+//   tbody.innerHTML = '';
+
+//   if (!interactions.length) {
+//     tbody.innerHTML = '<tr><td colspan="4" class="muted">No interactions yet.</td></tr>';
+//     return;
+//   }
+
+//   interactions.forEach(item => {
+//     const tr = document.createElement('tr');
+//     const type = item.resolutionType || 'UNKNOWN';
+
+//     tr.innerHTML = `
+//       <td>${shortText(item.createdAt || '', 22)}</td>
+//       <td>${shortText(item.category || 'Unknown', 32)}</td>
+//       <td><span class="${badgeClass(type)}">${type}</span></td>
+//       <td>${shortText(item.userQuestion || '', 100)}</td>
+//     `;
+
+//     tbody.appendChild(tr);
+//   });
+// }
+
+function renderGaps(gaps) {
+  const tbody = document.getElementById('gaps-body');
+  tbody.innerHTML = '';
+
+  if (!gaps.length) {
+    tbody.innerHTML = '<tr><td colspan="3" class="muted">No knowledge gaps yet.</td></tr>';
+    return;
+  }
+
+  gaps.forEach(item => {
+    const tr = document.createElement('tr');
+
+    tr.innerHTML = `
+      <td>${shortText(item.createdAt || '', 22)}</td>
+      <td>${shortText(item.category || 'Unknown', 28)}</td>
+      <td>${shortText(item.reason || '', 80)}</td>
+    `;
+
+    tbody.appendChild(tr);
+  });
+}
+
+document.getElementById('days-select').addEventListener('change', loadDashboard);
+
+loadDashboard();
+</script>
+</body>
+</html>

@@ -22,6 +22,9 @@ class Config:
     BEDROCK_AGENT_ID = os.getenv("BEDROCK_AGENT_ID")
     BEDROCK_AGENT_ALIAS_ID = os.getenv("BEDROCK_AGENT_ALIAS_ID")
 
+    # Internal API key used by AWS Lambda tools to write/read analytics
+    INTERNAL_TOOL_API_KEY = os.getenv("INTERNAL_TOOL_API_KEY")
+
 
 def require_env(name: str) -> str:
     value = os.getenv(name)

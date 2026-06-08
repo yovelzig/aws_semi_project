@@ -783,6 +783,80 @@
     border-bottom-left-radius: 6px;
   }
 
+    .msg-bubble p {
+    margin: 0 0 0.75rem;
+    line-height: 1.65;
+  }
+
+  .msg-bubble p:last-child {
+    margin-bottom: 0;
+  }
+
+  .msg-bubble strong {
+    font-weight: 900;
+    color: #ffffff;
+  }
+
+  .msg-bubble ul,
+  .msg-bubble ol {
+    margin: 0.45rem 0 0.85rem 1.25rem;
+    padding-left: 1rem;
+  }
+
+  .msg-bubble li {
+    margin-bottom: 0.35rem;
+    line-height: 1.6;
+  }
+
+  .msg-bubble h1,
+  .msg-bubble h2,
+  .msg-bubble h3 {
+    margin: 0.85rem 0 0.45rem;
+    font-weight: 900;
+    line-height: 1.25;
+  }
+
+  .msg-bubble h1 {
+    font-size: 1.25rem;
+  }
+
+  .msg-bubble h2 {
+    font-size: 1.12rem;
+  }
+
+  .msg-bubble h3 {
+    font-size: 1rem;
+  }
+
+  .msg-bubble code {
+    font-family: var(--mono);
+    font-size: 0.88em;
+    padding: 0.12rem 0.35rem;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--primary);
+  }
+
+  .msg-bubble pre {
+    overflow-x: auto;
+    padding: 0.85rem;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.28);
+    border: 1px solid var(--border);
+    margin: 0.75rem 0;
+  }
+
+  .msg-bubble pre code {
+    background: transparent;
+    padding: 0;
+    color: #dbeafe;
+  }
+
+  .msg-bubble a {
+    color: var(--primary);
+    text-decoration: underline;
+  }
+
   .typing-indicator {
     display: flex;
     gap: 5px;
@@ -984,6 +1058,10 @@
     .upload-chip { display: none; }
   }
 </style>
+
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
+
 </head>
 <body>
 
@@ -1244,15 +1322,64 @@ function clearWelcome() {
   if (welcome) welcome.remove();
 }
 
+// function addMessage(role, text) {
+//   clearWelcome();
+//   const div = document.createElement('div');
+//   div.className = `msg ${role}`;
+//   const avatarText = role === 'user' ? 'YOU' : 'IT';
+//   div.innerHTML = `
+//     <div class="msg-avatar">${avatarText}</div>
+//     <div class="msg-bubble">${escapeHtml(text)}</div>
+//   `;
+//   messagesEl.appendChild(div);
+//   scrollBottom();
+// }
+
+function renderMarkdown(text) {
+  if (!text) {
+    return "";
+  }
+
+  if (typeof marked === "undefined") {
+    return escapeHtml(text);
+  }
+
+  marked.setOptions({
+    breaks: true,
+    gfm: true
+  });
+
+  const rawHtml = marked.parse(text);
+
+  if (typeof DOMPurify !== "undefined") {
+    return DOMPurify.sanitize(rawHtml);
+  }
+
+  return rawHtml;
+}
+
 function addMessage(role, text) {
   clearWelcome();
+
   const div = document.createElement('div');
   div.className = `msg ${role}`;
-  const avatarText = role === 'user' ? 'YOU' : 'IT';
-  div.innerHTML = `
-    <div class="msg-avatar">${avatarText}</div>
-    <div class="msg-bubble">${escapeHtml(text)}</div>
-  `;
+
+  const avatar = document.createElement('div');
+  avatar.className = 'msg-avatar';
+  avatar.textContent = role === 'user' ? 'YOU' : 'IT';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble';
+
+  if (role === 'bot') {
+    bubble.innerHTML = renderMarkdown(text);
+  } else {
+    bubble.textContent = text;
+  }
+
+  div.appendChild(avatar);
+  div.appendChild(bubble);
+
   messagesEl.appendChild(div);
   scrollBottom();
 }
